@@ -74,7 +74,7 @@ async function convertToINR(amount, fromCurrency) {
     const conversionRates = response.data.rates;
     
     if (validCurrencies.includes(fromCurrency) && conversionRates[fromCurrency]) {
-        // Convert the amount to INR using the fetched conversion rate
+       
         const inrAmount = amount * conversionRates[fromCurrency];
         return { amount: inrAmount, currency: 'INR' };
     } else {
@@ -91,16 +91,16 @@ app.post("/upload", upload.single("sheet"), async (req, res) => {
         const csvBuffer = req.file.buffer.toString();
         const jsonArray = await csvtojson().fromString(csvBuffer);
 
-        // Validate and store each row in MongoDB
+        
         for (const row of jsonArray) {
-            // Convert date format (assuming your date field is named "Date")
+           
             if (row.Date) {
                 const [day, month, year] = row.Date.split("-");
                 const formattedDate = `${year}-${month}-${day}`;
                 row.Date = new Date(formattedDate);
             }
 
-            // Convert currency to INR
+           
             if (row.Currency && !validCurrencies.includes(row.Currency.toUpperCase())) {
                 const inrConversion = await convertToINR(row.Amount, row.Currency.toUpperCase());
                 row.Amount = inrConversion.amount;
