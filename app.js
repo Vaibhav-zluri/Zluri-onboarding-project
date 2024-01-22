@@ -24,13 +24,23 @@ app.post("/add", async (req, res) => {
 });
 
 
+const ITEMS_PER_PAGE = 10; 
+
 app.get("/display", async (req, res) => {
     try {
-        const viewexpense = await SchemeExpenses.find({});
-        
+       
+        const page = parseInt(req.query.page) || 1; 
+        const pageSize = parseInt(req.query.pageSize) || ITEMS_PER_PAGE;
+
+        const skip = (page - 1) * pageSize;
+
+        const viewexpense = await SchemeExpenses.find({})
+            .skip(skip)
+            .limit(pageSize);
+
         res.send(viewexpense);
     } catch (e) {
-        res.status(400).send(e.message);
+        res.status(500).send(e.message);
     }
 });
 
