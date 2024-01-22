@@ -103,7 +103,7 @@ app.post("/upload", upload.single("sheet"), async (req, res) => {
                 row.Date = new Date(formattedDate);
             }
 
-            
+            row.Currency=row.Currency.toUpperCase()
             if (row.Currency !='INR') {
                 
                 const inrConversion = await convertToINR(row.Amount, row.Currency);
