@@ -112,11 +112,11 @@ app.post("/upload", upload.single("sheet"), async (req, res) => {
                 row.Currency = inrConversion.currency;
                 console.log(row.Currency) ;
             }
-            if (row.Currency !='invalid') {
+            if (row.Currency !='invalid' || row.date <= new Date() ) {
             const addExpense = new SchemeExpenses(row);
             await addExpense.save();}
             else{
-                throw new Error(`Currency is invalid`);
+                throw new Error(`Currency or date  is invalid`);
             }
         }
 
