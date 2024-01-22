@@ -64,23 +64,26 @@ const upload = multer({ storage: storage });
 
 const axios = require('axios'); 
 
-const validCurrencies = ["USD", "EUR", "GBP", "INR"];
+
 
 async function convertToINR(amount, fromCurrency) {
     
-    const API_URL = 'https://v6.exchangerate-api.com/v6/015b1eed9c8af4b1c90b2c53/latest/USD'; 
+
+    const API_URL = 'https://v6.exchangerate-api.com/v6/015b1eed9c8af4b1c90b2c53/latest/INR';
     const response = await axios.get(API_URL);
+
+    const conversionRates = response.data.conversion_rates;
     
-    const conversionRates = response.data.rates;
-    
-    if (validCurrencies.includes(fromCurrency) && conversionRates[fromCurrency]) {
-       
-        const inrAmount = amount * conversionRates[fromCurrency];
+
+    if (conversionRates[fromCurrency]) {
+        const inrAmount = amount / conversionRates[fromCurrency];
         return { amount: inrAmount, currency: 'INR' };
     } else {
-        throw new Error(`Invalid or unsupported currency: ${fromCurrency}`);
+        return { amount: amount, currency: 'invalid' };
+        
     }
 }
+
 
 app.post("/upload", upload.single("sheet"), async (req, res) => {
     try {
@@ -100,15 +103,21 @@ app.post("/upload", upload.single("sheet"), async (req, res) => {
                 row.Date = new Date(formattedDate);
             }
 
-           
-            if (row.Currency && !validCurrencies.includes(row.Currency.toUpperCase())) {
-                const inrConversion = await convertToINR(row.Amount, row.Currency.toUpperCase());
+            
+            if (row.Currency !='INR') {
+                
+                const inrConversion = await convertToINR(row.Amount, row.Currency);
                 row.Amount = inrConversion.amount;
+                console.log(row.Amount) ; 
                 row.Currency = inrConversion.currency;
+                console.log(row.Currency) ;
             }
-
+            if (row.Currency !='invalid') {
             const addExpense = new SchemeExpenses(row);
-            await addExpense.save();
+            await addExpense.save();}
+            else{
+                throw new Error(`Currency is invalid`);
+            }
         }
 
         res.send("CSV data uploaded and stored in MongoDB");
