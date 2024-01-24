@@ -23,30 +23,12 @@ app.post("/add", async (req, res) => {
     }
 });
 
-// const ITEMS_PER_PAGE = 10; 
-
-// app.get("/display", async (req, res) => {
-//     try {
-       
-//         const page = parseInt(req.query.page) || 1; 
-//         const pageSize = parseInt(req.query.pageSize) || ITEMS_PER_PAGE;
-
-//         const skip = (page - 1) * pageSize;
-
-//         const viewexpense = await SchemeExpenses.find({})
-//             .skip(skip)
-//             .limit(pageSize);
-
-//         res.send(viewexpense);
-//     } catch (e) {
-//         res.status(500).send(e.message);
-//     }
-// });
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 10; 
 
 app.get("/display", async (req, res) => {
     try {
-        const page = parseInt(req.query.page) || 1;
+       
+        const page = parseInt(req.query.page) || 1; 
         const pageSize = parseInt(req.query.pageSize) || ITEMS_PER_PAGE;
 
         const skip = (page - 1) * pageSize;
@@ -55,35 +37,53 @@ app.get("/display", async (req, res) => {
             .skip(skip)
             .limit(pageSize);
 
-        
-        const displayData = viewexpense.map(async (row) => {
-            const displayRow = {
-                OriginalAmount: row.Amount,
-                OriginalCurrency: row.Currency,
-                Date: row.Date,
-                Description: row.Description,
-                ConvertedAmount: 0,
-                ConvertedCurrency: 'INR',
-            };
-
-            if (row.Currency && row.Currency !== 'INR') {
-                const conversion = await convertToINR(row.Amount, row.Currency);
-                displayRow.ConvertedAmount = conversion.amount;
-                displayRow.ConvertedCurrency = conversion.currency;
-            } else {
-                
-                displayRow.ConvertedAmount = row.Amount;
-            }
-
-            return displayRow;
-        });
-
-        const convertedData = await Promise.all(displayData);
-        res.send(convertedData);
+        res.send(viewexpense);
     } catch (e) {
         res.status(500).send(e.message);
     }
 });
+// const ITEMS_PER_PAGE = 10;
+
+// app.get("/display", async (req, res) => {
+//     try {
+//         const page = parseInt(req.query.page) || 1;
+//         const pageSize = parseInt(req.query.pageSize) || ITEMS_PER_PAGE;
+
+//         const skip = (page - 1) * pageSize;
+
+//         const viewexpense = await SchemeExpenses.find({})
+//             .skip(skip)
+//             .limit(pageSize);
+
+        
+//         const displayData = viewexpense.map(async (row) => {
+//             const displayRow = {
+//                 OriginalAmount: row.Amount,
+//                 OriginalCurrency: row.Currency,
+//                 Date: row.Date,
+//                 Description: row.Description,
+//                 ConvertedAmount: 0,
+//                 ConvertedCurrency: 'INR',
+//             };
+
+//             if (row.Currency && row.Currency !== 'INR') {
+//                 const conversion = await convertToINR(row.Amount, row.Currency);
+//                 displayRow.ConvertedAmount = conversion.amount;
+//                 displayRow.ConvertedCurrency = conversion.currency;
+//             } else {
+                
+//                 displayRow.ConvertedAmount = row.Amount;
+//             }
+
+//             return displayRow;
+//         });
+
+//         const convertedData = await Promise.all(displayData);
+//         res.send(convertedData);
+//     } catch (e) {
+//         res.status(500).send(e.message);
+//     }
+// });
 
 
 
@@ -116,9 +116,7 @@ const upload = multer({ storage: storage });
 const axios = require('axios'); 
 
 
-
-async function convertToINR(amount, fromCurrency) {
-    
+async function convertToINR(amount, fromCurrency) {    
 
     const API_URL = 'https://v6.exchangerate-api.com/v6/015b1eed9c8af4b1c90b2c53/latest/INR';
     const response = await axios.get(API_URL);
@@ -135,6 +133,24 @@ async function convertToINR(amount, fromCurrency) {
     }
 }
 
+const moment = require('moment');
+
+function convertToDate(inputDate) {
+    
+    const date = moment(inputDate, [
+        moment.ISO_8601,  
+        'MM/DD/YYYY',     
+        'YYYY-MM-DD', 
+        'DD-MM-YYYY'
+    ], true); 
+   
+    if (date.isValid()) {
+        return date.toDate();
+    }   
+    return new Date('invalid');
+}
+
+
 
 app.post("/upload", upload.single("sheet"), async (req, res) => {
     try {
@@ -145,31 +161,35 @@ app.post("/upload", upload.single("sheet"), async (req, res) => {
         const csvBuffer = req.file.buffer.toString();
         const jsonArray = await csvtojson().fromString(csvBuffer);
 
-        
         for (const row of jsonArray) {
-           
-            if (row.Date) {
-                const [day, month, year] = row.Date.split("-");
-                const formattedDate = `${year}-${month}-${day}`;
-                row.Date = new Date(formattedDate);
+            row.Currency=row.Currency.toUpperCase()
+            if (row.Currency !='INR') {
+                
+                const inrConversion = await convertToINR(row.Amount, row.Currency);
+                row.Amount = inrConversion.amount;
+                 
+                row.Currency = inrConversion.currency;
+                
             }
 
-            // row.Currency=row.Currency.toUpperCase()
-            // if (row.Currency !='INR') {
-                
-            //     const inrConversion = await convertToINR(row.Amount, row.Currency);
-            //     row.Amount = inrConversion.amount;
-            //     console.log(row.Amount) ; 
-            //     row.Currency = inrConversion.currency;
-            //     console.log(row.Currency) ;
-            // }
-            if (row.Currency !='invalid' || row.date <= new Date() ) {
-            const addExpense = new SchemeExpenses(row);
-            await addExpense.save();}
-            else{
-                throw new Error(`Currency or date  is invalid`);
-            }
-        }
+            // if (row.Date) {
+                const formattedDate = convertToDate(row.Date);
+
+                if (formattedDate !== 'Invalid Date') {
+                    row.Date = new Date(formattedDate);
+
+                    if (row.Currency !== 'invalid' && row.Amount>=0 && row.Date <= new Date()) {
+                        const addExpense = new SchemeExpenses(row);
+                        await addExpense.save();
+                    } else {
+                        console.log(`Skipping row with invalid currency or amount or future date: ${JSON.stringify(row)}`);
+                    }
+                } 
+                // else {
+                //     console.log(`Skipping row with invalid date format: ${JSON.stringify(row)}`);
+                // }
+        //     }
+         }
 
         res.send("CSV data uploaded and stored in MongoDB");
     } catch (error) {
@@ -177,6 +197,7 @@ app.post("/upload", upload.single("sheet"), async (req, res) => {
         res.status(500).send(error.message);
     }
 });
+
 
 app.listen(port, () => {
     console.log(`Connection is live at port no. ${port}`);
